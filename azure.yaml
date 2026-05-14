@@ -7,3 +7,14 @@ services:
     project: ./app
     language: python
     host: appservice
+hooks:
+  preprovision:
+    shell: sh
+    run: ./scripts/preprovision.sh
+    continueOnError: false
+    interactive: true
+  postprovision:
+    shell: sh
+    run: ./scripts/postprovision.sh
+    continueOnError: false
+    interactive: true

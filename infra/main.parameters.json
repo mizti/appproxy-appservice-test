@@ -10,6 +10,15 @@
     },
     "principalId": {
       "value": "${AZURE_PRINCIPAL_ID}"
+    },
+    "authClientId": {
+      "value": "${AUTH_CLIENT_ID}"
+    },
+    "authTenantId": {
+      "value": "${AUTH_TENANT_ID}"
+    },
+    "authClientSecret": {
+      "value": "${AUTH_CLIENT_SECRET}"
     }
   }
 }

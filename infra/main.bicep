@@ -12,6 +12,16 @@ param location string
 @description('Optional principal id (user/service principal) for role assignments. Set automatically by azd.')
 param principalId string = ''
 
+@description('Entra ID application (client) id used by App Service Easy Auth.')
+param authClientId string
+
+@description('Entra ID tenant id used by App Service Easy Auth.')
+param authTenantId string
+
+@secure()
+@description('Entra ID application client secret used by App Service Easy Auth.')
+param authClientSecret string
+
 var abbrs = {
   resourceGroup: 'rg'
   appServicePlan: 'plan'
@@ -37,6 +47,9 @@ module web 'modules/appservice.bicep' = {
     tags: tags
     appServicePlanName: '${abbrs.appServicePlan}-${resourceToken}'
     appServiceName: '${abbrs.appService}-${resourceToken}'
+    authClientId: authClientId
+    authTenantId: authTenantId
+    authClientSecret: authClientSecret
   }
 }
 

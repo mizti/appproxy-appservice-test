@@ -16,6 +16,18 @@ param linuxFxVersion string = 'PYTHON|3.11'
 @description('SKU name for the App Service Plan.')
 param skuName string = 'B1'
 
+@description('Entra ID application (client) id for Easy Auth.')
+param authClientId string
+
+@description('Entra ID tenant id for Easy Auth.')
+param authTenantId string
+
+@secure()
+@description('Entra ID application client secret for Easy Auth.')
+param authClientSecret string
+
+var authClientSecretSettingName = 'MICROSOFT_PROVIDER_AUTHENTICATION_SECRET'
+
 resource plan 'Microsoft.Web/serverfarms@2024-04-01' = {
   name: appServicePlanName
   location: location
@@ -62,7 +74,54 @@ resource site 'Microsoft.Web/sites@2024-04-01' = {
           name: 'ENABLE_ORYX_BUILD'
           value: 'true'
         }
+        {
+          name: authClientSecretSettingName
+          value: authClientSecret
+        }
       ]
+    }
+  }
+}
+
+resource authsettings 'Microsoft.Web/sites/config@2024-04-01' = {
+  parent: site
+  name: 'authsettingsV2'
+  properties: {
+    platform: {
+      enabled: true
+      runtimeVersion: '~1'
+    }
+    globalValidation: {
+      requireAuthentication: true
+      unauthenticatedClientAction: 'RedirectToLoginPage'
+      redirectToProvider: 'azureactivedirectory'
+    }
+    identityProviders: {
+      azureActiveDirectory: {
+        enabled: true
+        registration: {
+          clientId: authClientId
+          clientSecretSettingName: authClientSecretSettingName
+          openIdIssuer: 'https://login.microsoftonline.com/${authTenantId}/v2.0'
+        }
+        validation: {
+          allowedAudiences: [
+            'api://${authClientId}'
+            authClientId
+          ]
+        }
+      }
+    }
+    login: {
+      tokenStore: {
+        enabled: true
+      }
+    }
+    httpSettings: {
+      requireHttps: true
+      forwardProxy: {
+        convention: 'NoProxy'
+      }
     }
   }
 }

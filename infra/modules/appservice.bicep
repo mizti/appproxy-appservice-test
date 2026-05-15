@@ -26,7 +26,18 @@ param authTenantId string
 @description('Entra ID application client secret for Easy Auth.')
 param authClientSecret string
 
+@description('Public IP address of the App Proxy Connector VM. When set, App Service ingress is restricted to this IP only (deny-by-default). Leave empty to allow all traffic.')
+param connectorPublicIp string = ''
+
 var authClientSecretSettingName = 'MICROSOFT_PROVIDER_AUTHENTICATION_SECRET'
+var restrictIngress = !empty(connectorPublicIp)
+var connectorIpRule = {
+  name: 'AllowAppProxyConnector'
+  description: 'Allow only Azure AD App Proxy Connector VM'
+  action: 'Allow'
+  priority: 100
+  ipAddress: '${connectorPublicIp}/32'
+}
 
 resource plan 'Microsoft.Web/serverfarms@2024-04-01' = {
   name: appServicePlanName
@@ -61,6 +72,8 @@ resource site 'Microsoft.Web/sites@2024-04-01' = {
       minTlsVersion: '1.2'
       http20Enabled: true
       appCommandLine: 'gunicorn --bind=0.0.0.0:8000 --timeout 600 app:app'
+      ipSecurityRestrictionsDefaultAction: restrictIngress ? 'Deny' : 'Allow'
+      ipSecurityRestrictions: restrictIngress ? [ connectorIpRule ] : []
       appSettings: [
         {
           name: 'SCM_DO_BUILD_DURING_DEPLOYMENT'

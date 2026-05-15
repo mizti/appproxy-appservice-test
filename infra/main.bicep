@@ -64,6 +64,7 @@ module web 'modules/appservice.bicep' = {
     authClientId: authClientId
     authTenantId: authTenantId
     authClientSecret: authClientSecret
+    connectorPublicIp: connector.outputs.publicIpAddress
   }
 }
 

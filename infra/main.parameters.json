@@ -19,6 +19,18 @@
     },
     "authClientSecret": {
       "value": "${AUTH_CLIENT_SECRET}"
+    },
+    "connectorAllowedRdpCidr": {
+      "value": "${CONNECTOR_ALLOWED_RDP_CIDR}"
+    },
+    "connectorAdminUsername": {
+      "value": "${CONNECTOR_ADMIN_USERNAME=azureuser}"
+    },
+    "connectorAdminPassword": {
+      "value": "${CONNECTOR_ADMIN_PASSWORD}"
+    },
+    "connectorVmSize": {
+      "value": "${CONNECTOR_VM_SIZE=Standard_B2ms}"
     }
   }
 }

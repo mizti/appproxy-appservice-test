@@ -22,10 +22,24 @@ param authTenantId string
 @description('Entra ID application client secret used by App Service Easy Auth.')
 param authClientSecret string
 
+@description('CIDR allowed to RDP to the App Proxy Connector VM.')
+param connectorAllowedRdpCidr string
+
+@description('Admin username for the Connector VM.')
+param connectorAdminUsername string = 'azureuser'
+
+@secure()
+@description('Admin password for the Connector VM.')
+param connectorAdminPassword string
+
+@description('VM size for the Connector VM.')
+param connectorVmSize string = 'Standard_B2ms'
+
 var abbrs = {
   resourceGroup: 'rg'
   appServicePlan: 'plan'
   appService: 'app'
+  connector: 'connector'
 }
 
 var resourceToken = toLower(uniqueString(subscription().id, environmentName, location))
@@ -53,7 +67,24 @@ module web 'modules/appservice.bicep' = {
   }
 }
 
+module connector 'modules/connector-vm.bicep' = {
+  name: 'connector'
+  scope: rg
+  params: {
+    location: location
+    tags: tags
+    namePrefix: '${abbrs.connector}-${resourceToken}'
+    allowedRdpCidr: connectorAllowedRdpCidr
+    adminUsername: connectorAdminUsername
+    adminPassword: connectorAdminPassword
+    vmSize: connectorVmSize
+  }
+}
+
 output AZURE_LOCATION string = location
 output AZURE_RESOURCE_GROUP string = rg.name
 output SERVICE_WEB_NAME string = web.outputs.appServiceName
 output SERVICE_WEB_URI string = web.outputs.appServiceUri
+output CONNECTOR_VM_NAME string = connector.outputs.vmName
+output CONNECTOR_PUBLIC_IP string = connector.outputs.publicIpAddress
+output CONNECTOR_ADMIN_USERNAME string = connector.outputs.adminUsername

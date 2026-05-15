@@ -59,3 +59,56 @@ else
 fi
 
 echo "Preprovision complete: AUTH_CLIENT_ID=${client_id}"
+
+# ---------------------------------------------------------------------------
+# Connector VM admin password: generate once and persist in the azd env.
+# ---------------------------------------------------------------------------
+existing_pw="$(azd env get-values 2>/dev/null | awk -F= '/^CONNECTOR_ADMIN_PASSWORD=/{gsub(/"/, "", $2); print $2}')"
+if [[ -z "${existing_pw}" ]]; then
+  # 20 chars, mix of upper/lower/digits/symbols to satisfy Windows complexity.
+  pw="$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | head -c 18)Aa1@"
+  azd env set CONNECTOR_ADMIN_PASSWORD "$pw" >/dev/null
+  echo "Generated CONNECTOR_ADMIN_PASSWORD and stored in azd env."
+else
+  echo "Reusing existing CONNECTOR_ADMIN_PASSWORD from azd env."
+fi
+
+# Default the RDP source CIDR if the caller did not provide one.
+existing_cidr="$(azd env get-values 2>/dev/null | awk -F= '/^CONNECTOR_ALLOWED_RDP_CIDR=/{gsub(/"/, "", $2); print $2}')"
+if [[ -z "${existing_cidr}" ]]; then
+  azd env set CONNECTOR_ALLOWED_RDP_CIDR "153.166.35.153/32" >/dev/null
+  echo "Defaulted CONNECTOR_ALLOWED_RDP_CIDR=153.166.35.153/32."
+fi
+
+# ---------------------------------------------------------------------------
+# Entra ID App Proxy application (onPremisesPublishing) -- create or reuse.
+# ---------------------------------------------------------------------------
+proxy_display="appproxy-stub-${AZURE_ENV_NAME}"
+proxy_app_object_id="$(az rest --method get \
+  --uri "https://graph.microsoft.com/v1.0/applications?\$filter=displayName eq '${proxy_display}'&\$select=id,appId,displayName" \
+  --query "value[0].id" -o tsv 2>/dev/null || true)"
+proxy_app_id="$(az rest --method get \
+  --uri "https://graph.microsoft.com/v1.0/applications?\$filter=displayName eq '${proxy_display}'&\$select=id,appId,displayName" \
+  --query "value[0].appId" -o tsv 2>/dev/null || true)"
+
+if [[ -z "${proxy_app_object_id}" || "${proxy_app_object_id}" == "null" ]]; then
+  echo "Instantiating 'On-premises application' template for '${proxy_display}'..."
+  # The "On-premises application" gallery template
+  # (8adf8e6e-67b2-4cf2-a259-e3dc5476c621) creates both an Application object
+  # and a tagged ServicePrincipal whose application supports the
+  # 'onPremisesPublishing' resource. Plain POST /applications does NOT yield an
+  # app that can be configured for App Proxy.
+  create_resp="$(az rest --method post \
+    --uri "https://graph.microsoft.com/v1.0/applicationTemplates/8adf8e6e-67b2-4cf2-a259-e3dc5476c621/instantiate" \
+    --headers "Content-Type=application/json" \
+    --body "{\"displayName\":\"${proxy_display}\"}")"
+  proxy_app_object_id="$(echo "$create_resp" | python3 -c 'import sys,json;print(json.load(sys.stdin)["application"]["id"])')"
+  proxy_app_id="$(echo "$create_resp" | python3 -c 'import sys,json;print(json.load(sys.stdin)["application"]["appId"])')"
+else
+  echo "Reusing existing Entra App Proxy application '${proxy_display}' (${proxy_app_id})."
+fi
+
+azd env set APP_PROXY_APP_OBJECT_ID "$proxy_app_object_id" >/dev/null
+azd env set APP_PROXY_APP_ID "$proxy_app_id" >/dev/null
+echo "App Proxy onPremisesPublishing will be configured by the postprovision hook."
+

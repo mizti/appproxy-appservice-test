@@ -119,8 +119,12 @@ resource authsettings 'Microsoft.Web/sites/config@2024-04-01' = {
     }
     httpSettings: {
       requireHttps: true
+      // App Proxy forwards client requests with X-Forwarded-Host / X-Forwarded-Proto.
+      // Honor those so that Easy Auth issues the OAuth redirect_uri pointing at
+      // the App Proxy external URL (not the direct *.azurewebsites.net hostname),
+      // keeping the user on the App Proxy URL after sign-in.
       forwardProxy: {
-        convention: 'NoProxy'
+        convention: 'Standard'
       }
     }
   }

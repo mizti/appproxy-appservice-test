@@ -10,7 +10,7 @@ Microsoft Entra Application Proxy (旧 Azure AD App Proxy) の前段認証 (pre-
 
 ---
 
-## 必須条件 1 — 入口と出口で同じ FQDN を使う
+## 必須条件 1 — App ProxyとApp Serviceに同じカスタムドメインを設定する
 
 ### 設定の概要
 App Proxy の External URL と App Service に登録するカスタム ホスト名を **同一の FQDN** にする。DNS の CNAME も同じ FQDN で App Proxy へ向ける。
@@ -38,12 +38,13 @@ End-to-end で同一 FQDN を使わないと、ブラウザに表示される UR
    ```bash
    az webapp config hostname add -g <rg> --webapp-name <app> --hostname web.mizugokoro.net
    ```
-3. **App Proxy の External URL を `https://web.mizugokoro.net/` に設定** (必須条件 5 の PFX アップロード手順内で実施)
+3. **App Proxy の External URL を `https://web.mizugokoro.net/` に設定** (必須条件 5 を参照)
 4. **DNS に CNAME レコードを作成**
+   カスタムドメインURLがApp Proxyに解決されるように登録を行う
    ```
    web.mizugokoro.net.  CNAME  <tenantPrefix>-<tenantInitial>.msappproxy.net.
    ```
-   `<tenantPrefix>-<tenantInitial>.msappproxy.net` の値は App Proxy アプリの External URL 設定画面に表示される。
+   `<tenantPrefix>-<tenantInitial>.msappproxy.net` の値は App Proxy アプリの External URL 設定画面で確認できる。
 
 ### 確認方法
 ```bash
@@ -129,7 +130,7 @@ az webapp auth show -g <rg> -n <app> --query "httpSettings.forwardProxy"
 
 ---
 
-## 必須条件 4 — Easy Auth 用 Entra アプリに reply URL を追加
+## 必須条件 4 — Easy Auth 用 Entra アプリのリダイレクト許可リストにカスタムドメインを追加
 
 ### 設定の概要
 Easy Auth が使用する Entra アプリの **リダイレクト URI** に `https://web.mizugokoro.net/.auth/login/aad/callback` を追加する。
@@ -160,7 +161,7 @@ az ad app show --id <easyAuthAppId> --query "web.redirectUris" -o json
 
 ---
 
-## 必須条件 5 — App Proxy 用の TLS 証明書 (PFX) を用意
+## 必須条件 5 — App Proxyにカスタムドメインと証明書を設定
 
 ### 設定の概要
 カスタムドメイン用の **エクスポート可能な PFX (秘密鍵付き)** を作成し、App Proxy にアップロードする。
@@ -182,11 +183,11 @@ App Proxy はカスタム ドメイン公開時に TLS 終端用のPFX形式証�
     -out   ~/web.mizugokoro.net.pfx
   ```
 
-### 設定方法 (App Proxy へのアップロード)
+### 設定方法 (App Proxyへのカスタムドメイン設定)
 
 1. カスタムドメインをテナントに登録する。Entra管理センターの「ドメイン名」＞カスタムドメイン名から「カスタムドメインの追加」を行い、TXTレコードをDNS設定等してVerifyを行う
 
-2. Entra 管理センター → エンタープライズ アプリケーション → App Proxyのアプリ → *アプリケーション プロキシ」を開く。外部URLのドメイン プルダウンから検証済みカスタム ドメイン (例: `mizugokoro.net`) を選択し、ホスト名部分に `web` を入力して `https://web.mizugokoro.net/` にする
+2. Entra 管理センター → エンタープライズ アプリケーション → App Proxyのアプリ → 「アプリケーション プロキシ」を開く。外部URLのドメイン プルダウンから検証済みカスタム ドメイン (例: `mizugokoro.net`) を選択し、ホスト名部分に `web` を入力して `https://web.mizugokoro.net/` にする
 3. 「証明書」セクションで PFX をアップロードし、エクスポート パスワードを入力 → **「保存」**
 
 バックエンド側 (App Service) は既定の `*.azurewebsites.net` 証明書のままで問題ない (Connector は SNI = `*.azurewebsites.net` で TLS を確立するため)。
@@ -207,3 +208,79 @@ App Proxy はカスタム ドメイン公開時に TLS 終端用のPFX形式証�
 | `X-MS-Proxy` ヘッダ | `AzureAD-Application-Proxy` | 同上 |
 | `X-MS-Client-Principal-Name` ヘッダ | サインインしたユーザーの UPN | 同上 |
 | `*.azurewebsites.net` への直接アクセス | **HTTP 403** | `curl -I https://<app>.azurewebsites.net/` |
+
+---
+
+## 認証〜画面表示までのシーケンス
+
+未認証のユーザーが `https://web.mizugokoro.net/` にアクセスし、Entra でサインインして App Service のページが返るまでの流れを示す。
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant U as User Browser
+    participant AP as App Proxy<br/>(*.msappproxy.net)
+    participant E as Microsoft Entra ID<br/>(login.microsoftonline.com)
+    participant C as Connector VM
+    participant EA as App Service<br/>Easy Auth (front)
+    participant App as App Service<br/>backend (Flask)
+
+    Note over U,AP: DNS: web.mizugokoro.net CNAME → *.msappproxy.net
+
+    U->>AP: GET https://web.mizugokoro.net/<br/>Host: web.mizugokoro.net
+    AP-->>U: 302 Location: https://login.microsoftonline.com/{tenant}/oauth2/v2.0/authorize?...<br/>(App Proxy pre-auth)
+    U->>E: GET /authorize?...<br/>(App Proxy 用 client_id)
+    E-->>U: ログイン画面 / MFA
+    U->>E: 資格情報送信
+    E-->>U: 302 → App Proxy のコールバック<br/>Set-Cookie: App Proxy セッション
+
+    U->>AP: GET https://web.mizugokoro.net/ (Cookie 付き)<br/>Host: web.mizugokoro.net
+
+    Note over AP,C: App Proxy → Connector の経路<br/>isTranslateHostHeaderEnabled=false により<br/>Host ヘッダはそのまま透過
+
+    AP->>C: GET / <br/>Host: web.mizugokoro.net<br/>X-Forwarded-Host: web.mizugokoro.net<br/>X-Forwarded-Proto: https<br/>X-MS-Proxy: AzureAD-Application-Proxy
+    C->>EA: GET https://app-xxx.azurewebsites.net/<br/>TCP/SNI: *.azurewebsites.net<br/>Host: web.mizugokoro.net (透過)<br/>X-Forwarded-Host / -Proto 引き継ぎ
+
+    Note over EA: Easy Auth 未認証セッション検出<br/>forwardProxy.convention=Standard により<br/>X-Forwarded-Host を信頼
+
+    EA-->>C: 302 Location: https://login.microsoftonline.com/{tenant}/oauth2/v2.0/authorize<br/>?client_id={EasyAuthAppId}<br/>&redirect_uri=https://web.mizugokoro.net/.auth/login/aad/callback
+    C-->>AP: 302 (同上)
+    AP-->>U: 302 (同上)
+
+    U->>E: GET /authorize (Easy Auth 用 client_id)
+    E-->>U: (同一セッション利用 / 同意済みなら即返却)
+    E-->>U: 302 → https://web.mizugokoro.net/.auth/login/aad/callback?code=...
+
+    U->>AP: GET /.auth/login/aad/callback?code=...<br/>Host: web.mizugokoro.net
+    AP->>C: GET /.auth/login/aad/callback?code=...<br/>Host: web.mizugokoro.net
+    C->>EA: 同上 (Host 透過)
+
+    Note over EA,E: Easy Auth が code を token に交換 (back-channel)
+    EA->>E: POST /oauth2/v2.0/token<br/>(client_id, code, redirect_uri=https://web.mizugokoro.net/.auth/login/aad/callback)
+    E-->>EA: id_token / access_token
+
+    EA-->>C: 302 Location: https://web.mizugokoro.net/<br/>Set-Cookie: AppServiceAuthSession=... Domain=web.mizugokoro.net
+    C-->>AP: 302 (同上)
+    AP-->>U: 302 (同上)
+
+    U->>AP: GET https://web.mizugokoro.net/<br/>Cookie: AppServiceAuthSession=...
+    AP->>C: GET /<br/>Host: web.mizugokoro.net<br/>Cookie: AppServiceAuthSession=...
+    C->>EA: 同上
+    Note over EA: Cookie 検証 OK → 認証済みとして<br/>バックエンドへフォワード
+    EA->>App: GET /<br/>Host: web.mizugokoro.net<br/>X-MS-Client-Principal-Name: user@contoso.com<br/>X-MS-Client-Principal-Id: {oid}<br/>X-MS-Proxy: AzureAD-Application-Proxy
+    App-->>EA: 200 OK (HTML)
+    EA-->>C: 200 OK
+    C-->>AP: 200 OK
+    AP-->>U: 200 OK (App Service の画面が表示される)
+```
+
+### シーケンス成立のために重要なヘッダ
+
+| ヘッダ | 経路 | 役割 |
+|---|---|---|
+| `Host: web.mizugokoro.net` | クライアント → App Proxy → Connector → App Service | 全区間で一貫させることで Easy Auth が正しい `redirect_uri` を生成し、App Service もカスタム ドメイン バインディングにマッチさせる |
+| `X-Forwarded-Host: web.mizugokoro.net` | App Proxy / Connector → App Service | `forwardProxy.convention=Standard` により Easy Auth がこの値を `redirect_uri` の host として採用 |
+| `X-Forwarded-Proto: https` | 同上 | Easy Auth が `redirect_uri` を `https://` で生成するために必要 |
+| `X-MS-Proxy: AzureAD-Application-Proxy` | Connector → App Service | App Proxy 経由であることをバックエンドが識別 |
+| `X-MS-Client-Principal-Name` / `-Id` | Easy Auth → バックエンド | サインインしたユーザー情報をバックエンドに伝達 |
+| `Set-Cookie: AppServiceAuthSession` | Easy Auth → クライアント | Easy Auth 側の認証済みセッション Cookie。Domain は `web.mizugokoro.net` |

@@ -7,6 +7,14 @@ set -euo pipefail
 
 : "${AZURE_ENV_NAME:?AZURE_ENV_NAME not set}"
 
+existing_location="$(azd env get-values 2>/dev/null | awk -F= '/^AZURE_LOCATION=/{gsub(/"/, "", $2); print $2}')"
+if [[ -z "${existing_location}" ]]; then
+  azd env set AZURE_LOCATION westus2 >/dev/null
+  echo "Saved AZURE_LOCATION=westus2."
+else
+  echo "Reusing AZURE_LOCATION=${existing_location}."
+fi
+
 # Prompt before making any Azure changes so a new environment cannot proceed
 # without an explicit administrator source range.
 existing_cidr="$(azd env get-values 2>/dev/null | awk -F= '/^CONNECTOR_ALLOWED_RDP_CIDR=/{gsub(/"/, "", $2); print $2}')"

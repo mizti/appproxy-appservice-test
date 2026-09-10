@@ -22,6 +22,9 @@ azd auth login
 azd up
 ```
 
+`AZURE_LOCATION` が未設定の場合、`preprovision` は `westus2` を azd 環境へ保存します。
+既存環境にリージョンが設定されている場合は、その値を再利用します。
+
 新しい環境では、Connector VM の RDP と App Service の SCM デプロイを許可する
 IPv4 CIDR の入力を求められます。1 台の管理端末だけを許可する場合は、端末の
 グローバル IPv4 アドレスに `/32` を付けて入力します。

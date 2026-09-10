@@ -7,7 +7,7 @@ param environmentName string
 
 @minLength(1)
 @description('Primary Azure region for all resources.')
-param location string
+param location string = 'westus2'
 
 @description('Entra ID application (client) id used by App Service Easy Auth.')
 param authClientId string = ''
@@ -30,7 +30,7 @@ param connectorAdminUsername string = 'azureuser'
 param connectorAdminPassword string = ''
 
 @description('VM size for the Connector VM.')
-param connectorVmSize string = 'Standard_B2ms'
+param connectorVmSize string = 'Standard_D2s_v5'
 
 var abbrs = {
   resourceGroup: 'rg'

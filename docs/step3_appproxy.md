@@ -12,7 +12,7 @@ azd 後に **1 度だけ手動で必要な操作 (Connector 登録)** をまと�
   - NSG: TCP 3389 を、環境作成時に入力した
     `CONNECTOR_ALLOWED_RDP_CIDR` からのみ許可
    - Standard Public IP (output: `CONNECTOR_PUBLIC_IP`)
-   - VM サイズ: `CONNECTOR_VM_SIZE` (デフォルト `Standard_B2ms`)
+  - VM サイズ: `CONNECTOR_VM_SIZE` (デフォルト `Standard_D2s_v5`)
    - 管理者: `CONNECTOR_ADMIN_USERNAME` / `CONNECTOR_ADMIN_PASSWORD` (azd env)
 2. **App Service Private Endpoint**
   - 専用 Subnet `private-endpoints 10.10.2.0/24` に配置

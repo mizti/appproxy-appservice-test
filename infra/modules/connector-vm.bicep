@@ -18,7 +18,7 @@ param adminUsername string = 'azureuser'
 param adminPassword string
 
 @description('VM size for the connector.')
-param vmSize string = 'Standard_B2ms'
+param vmSize string = 'Standard_D2s_v5'
 
 var installScript = loadTextContent('../../scripts/install-connector.ps1')
 var installScriptB64 = base64(installScript)

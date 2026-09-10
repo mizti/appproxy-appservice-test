@@ -3,3 +3,6 @@
 - このリポジトリはAzureにおいてApp ProxyとApp Serviceを連携させ、インターネットからのアクセスを遮断したApp Serviceに対してApp Proxy経由で安全にアクセスできる構成を検証・実証するためのものである
 - 本リポジトリはAzure Developer CLI形式で構成されており、``azd up``コマンドによってすべての構成を完了させることが可能である
 - また、App ServiceのEasy AuthとApp Proxyでの二重認証が正しく働くことの確認も行う
+- App Serviceへのアプリケーション通信はPrivate Endpointを経由し、Connector VMが属するVNetからのみ到達できるようにする
+- App Serviceの公開メインサイトはすべて拒否する。SCMエンドポイントはazdによるデプロイのため、管理者が指定したIPv4 CIDRからのみ許可する
+- Connector VMへのRDP接続を許可するIPv4 CIDRは、環境ごとに対話入力または`CONNECTOR_ALLOWED_RDP_CIDR`で明示し、テンプレート内に固定値を持たせない

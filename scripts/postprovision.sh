@@ -114,9 +114,9 @@ fi
 # hostname -- the host-name-preservation pattern).
 #
 # internalUrl stays on the App Service default *.azurewebsites.net URL even in
-# custom-domain mode. This keeps the design simple:
-#   * Connector connects to the public *.azurewebsites.net (TLS SNI uses the
-#     default Microsoft cert -- no extra App Service SSL binding needed).
+# custom-domain mode. Inside the Connector VNet, Private DNS resolves this host
+# to the App Service private endpoint while TLS SNI still uses the default
+# Microsoft certificate, so no extra App Service SSL binding is needed.
 #   * Host header forwarded to App Service is the CUSTOM_DOMAIN value (because
 #     isTranslateHostHeaderEnabled=false). App Service still needs CUSTOM_DOMAIN
 #     registered as a custom hostname (without SSL is fine) to accept that Host

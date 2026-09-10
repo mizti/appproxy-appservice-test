@@ -9,21 +9,26 @@ azd 後に **1 度だけ手動で必要な操作 (Connector 登録)** をまと�
 
 1. **Connector VM** (Windows Server 2022 datacenter-azure-edition, TrustedLaunch)
    - VNet `10.10.0.0/16` / Subnet `connectors 10.10.1.0/24`
-   - NSG: TCP 3389 を `CONNECTOR_ALLOWED_RDP_CIDR` (デフォルト
-     `153.166.35.153/32`) からのみ許可
+  - NSG: TCP 3389 を、環境作成時に入力した
+    `CONNECTOR_ALLOWED_RDP_CIDR` からのみ許可
    - Standard Public IP (output: `CONNECTOR_PUBLIC_IP`)
    - VM サイズ: `CONNECTOR_VM_SIZE` (デフォルト `Standard_B2ms`)
    - 管理者: `CONNECTOR_ADMIN_USERNAME` / `CONNECTOR_ADMIN_PASSWORD` (azd env)
-2. **Custom Script Extension** — `scripts/install-connector.ps1` をインライン
+2. **App Service Private Endpoint**
+  - 専用 Subnet `private-endpoints 10.10.2.0/24` に配置
+  - Private DNS Zone `privatelink.azurewebsites.net` を VNet にリンク
+  - App Service の公開メインサイトはすべて拒否
+  - SCM/Kudu は `CONNECTOR_ALLOWED_RDP_CIDR` からのみ許可
+3. **Custom Script Extension** — `scripts/install-connector.ps1` をインライン
    (Base64) で実行。次を行います:
    - `HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\DisableLoopbackCheck = 1`
    - `AADAppProxyConnectorInstaller.exe` を `/q ACCEPTEULA=1
      REGISTERCONNECTOR="false"` で **登録なしサイレントインストール**
-3. **Entra App Proxy 用 Application** (`appproxy-stub-${AZURE_ENV_NAME}`)
+4. **Entra App Proxy 用 Application** (`appproxy-stub-${AZURE_ENV_NAME}`)
    - `preprovision.sh` が Microsoft Graph で作成し、対応する Service Principal
      に `WindowsAzureActiveDirectoryIntegratedApp`,
      `WindowsAzureActiveDirectoryOnPremApp` タグを付与
-4. **サインインしているユーザを Application に割り当て**
+5. **サインインしているユーザを Application に割り当て**
    `appRoleAssignedTo` で `appRoleId=00000000-0000-0000-0000-000000000000`
    (Default Access) を割り当て
 
@@ -112,7 +117,10 @@ https://appproxy-stub-<env>.msappproxy.net   ←─ App Proxy 前段 (Entra pre-
   ▼
 Connector (VM, 10.10.1.x) ── アウトバウンド 443 ──▶
                                       https://app-XXXX.azurewebsites.net
-                                      ←─ Easy Auth (二段目)
+                                      │ Private DNS で 10.10.2.x に解決
+                                      ▼
+                                      Private Endpoint
+                                      └─ Easy Auth (二段目)
 ```
 
 ## トラブルシューティング
@@ -127,6 +135,10 @@ Connector (VM, 10.10.1.x) ── アウトバウンド 443 ──▶
 - Connector が `RegisterConnector.ps1` で失敗
   → サインインアカウントが Application Administrator か Cloud Application
   Administrator ロールを保持していることを確認。
+- Connector VM から App Service に接続できない
+  → VM 上で `Resolve-DnsName <app-name>.azurewebsites.net` を実行し、
+  `privatelink.azurewebsites.net` を経由して `10.10.2.0/24` のアドレスへ解決される
+  ことを確認。
 
 ---
 
@@ -139,7 +151,7 @@ App Service 直URL (`app-XXXX.azurewebsites.net`) で組み立てられ、サイ
 
 これを解決するのが「**App Service と App Proxy に同一の FQDN を割り当て、
 DNS で App Proxy を指す**」host-name-preservation パターン (Microsoft 公式)。
-Step 4 の閉域化 (App Service への直アクセス禁止) とも整合します。
+Private Endpoint による閉域化とも整合します。
 
 ### アーキテクチャ
 
@@ -151,6 +163,7 @@ App Proxy (TLS 終端 = mizugokoro.net 用 PFX)
    │ (pre-auth: Entra)
    ▼
 Connector ── HTTPS ──▶ https://app-XXXX.azurewebsites.net/
+                       └ Private DNS → Private Endpoint (10.10.2.x)
                        └ Host: app.mizugokoro.net (preserved)
                        └ TLS SNI: *.azurewebsites.net (default cert)
                        └ Easy Auth が Host=app.mizugokoro.net を見て

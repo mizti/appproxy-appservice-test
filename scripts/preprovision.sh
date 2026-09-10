@@ -7,6 +7,40 @@ set -euo pipefail
 
 : "${AZURE_ENV_NAME:?AZURE_ENV_NAME not set}"
 
+# Prompt before making any Azure changes so a new environment cannot proceed
+# without an explicit administrator source range.
+existing_cidr="$(azd env get-values 2>/dev/null | awk -F= '/^CONNECTOR_ALLOWED_RDP_CIDR=/{gsub(/"/, "", $2); print $2}')"
+if [[ -z "${existing_cidr}" ]]; then
+  while true; do
+    printf '%s' 'Enter the IPv4 CIDR allowed for Connector VM RDP and App Service deployment (example: 203.0.113.10/32): '
+    if ! IFS= read -r cidr; then
+      echo "ERROR: CONNECTOR_ALLOWED_RDP_CIDR is required." >&2
+      exit 1
+    fi
+
+    if python3 - "${cidr}" <<'PY'
+import ipaddress
+import sys
+
+try:
+    network = ipaddress.ip_network(sys.argv[1], strict=False)
+except ValueError:
+    raise SystemExit(1)
+
+raise SystemExit(0 if network.version == 4 else 1)
+PY
+    then
+      azd env set CONNECTOR_ALLOWED_RDP_CIDR "${cidr}" >/dev/null
+      echo "Saved CONNECTOR_ALLOWED_RDP_CIDR=${cidr}."
+      break
+    fi
+
+    echo "Invalid IPv4 CIDR. Enter an address and prefix length, such as 203.0.113.10/32." >&2
+  done
+else
+  echo "Reusing CONNECTOR_ALLOWED_RDP_CIDR=${existing_cidr}."
+fi
+
 display_name="appproxy-easyauth-${AZURE_ENV_NAME}"
 
 tenant_id="$(az account show --query tenantId -o tsv)"
@@ -71,13 +105,6 @@ if [[ -z "${existing_pw}" ]]; then
   echo "Generated CONNECTOR_ADMIN_PASSWORD and stored in azd env."
 else
   echo "Reusing existing CONNECTOR_ADMIN_PASSWORD from azd env."
-fi
-
-# Default the RDP source CIDR if the caller did not provide one.
-existing_cidr="$(azd env get-values 2>/dev/null | awk -F= '/^CONNECTOR_ALLOWED_RDP_CIDR=/{gsub(/"/, "", $2); print $2}')"
-if [[ -z "${existing_cidr}" ]]; then
-  azd env set CONNECTOR_ALLOWED_RDP_CIDR "153.166.35.153/32" >/dev/null
-  echo "Defaulted CONNECTOR_ALLOWED_RDP_CIDR=153.166.35.153/32."
 fi
 
 # ---------------------------------------------------------------------------

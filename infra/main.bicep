@@ -9,28 +9,25 @@ param environmentName string
 @description('Primary Azure region for all resources.')
 param location string
 
-@description('Optional principal id (user/service principal) for role assignments. Set automatically by azd.')
-param principalId string = ''
-
 @description('Entra ID application (client) id used by App Service Easy Auth.')
-param authClientId string
+param authClientId string = ''
 
 @description('Entra ID tenant id used by App Service Easy Auth.')
-param authTenantId string
+param authTenantId string = ''
 
 @secure()
 @description('Entra ID application client secret used by App Service Easy Auth.')
-param authClientSecret string
+param authClientSecret string = ''
 
-@description('CIDR allowed to RDP to the App Proxy Connector VM.')
-param connectorAllowedRdpCidr string
+@description('CIDR allowed to RDP to the App Proxy Connector VM and deploy through the App Service SCM endpoint.')
+param connectorAllowedRdpCidr string = ''
 
 @description('Admin username for the Connector VM.')
 param connectorAdminUsername string = 'azureuser'
 
 @secure()
 @description('Admin password for the Connector VM.')
-param connectorAdminPassword string
+param connectorAdminPassword string = ''
 
 @description('VM size for the Connector VM.')
 param connectorVmSize string = 'Standard_B2ms'
@@ -64,7 +61,9 @@ module web 'modules/appservice.bicep' = {
     authClientId: authClientId
     authTenantId: authTenantId
     authClientSecret: authClientSecret
-    connectorPublicIp: connector.outputs.publicIpAddress
+    virtualNetworkId: connector.outputs.virtualNetworkId
+    privateEndpointSubnetId: connector.outputs.privateEndpointSubnetId
+    deploymentAllowedCidr: connectorAllowedRdpCidr
   }
 }
 

@@ -207,7 +207,7 @@ App Proxy はカスタム ドメイン公開時に TLS 終端用のPFX形式証�
 | バックエンドが見る `Disguised-Host` ヘッダ | `web.mizugokoro.net` | 同上 |
 | `X-MS-Proxy` ヘッダ | `AzureAD-Application-Proxy` | 同上 |
 | `X-MS-Client-Principal-Name` ヘッダ | サインインしたユーザーの UPN | 同上 |
-| `*.azurewebsites.net` への直接アクセス | **HTTP 403** | `curl -I https://<app>.azurewebsites.net/` |
+| VNet 外から `*.azurewebsites.net` へ直接アクセス | **HTTP 403** | `curl -I https://<app>.azurewebsites.net/` |
 
 ---
 
@@ -239,7 +239,7 @@ sequenceDiagram
     Note over AP,C: App Proxy → Connector の経路<br/>isTranslateHostHeaderEnabled=false により<br/>Host ヘッダはそのまま透過
 
     AP->>C: GET / <br/>Host: web.mizugokoro.net<br/>X-Forwarded-Host: web.mizugokoro.net<br/>X-Forwarded-Proto: https<br/>X-MS-Proxy: AzureAD-Application-Proxy
-    C->>EA: GET https://app-xxx.azurewebsites.net/<br/>TCP/SNI: *.azurewebsites.net<br/>Host: web.mizugokoro.net (透過)<br/>X-Forwarded-Host / -Proto 引き継ぎ
+    C->>EA: Private Endpoint 経由で GET https://app-xxx.azurewebsites.net/<br/>TCP/SNI: *.azurewebsites.net<br/>Host: web.mizugokoro.net (透過)<br/>X-Forwarded-Host / -Proto 引き継ぎ
 
     Note over EA: Easy Auth 未認証セッション検出<br/>forwardProxy.convention=Standard により<br/>X-Forwarded-Host を信頼
 

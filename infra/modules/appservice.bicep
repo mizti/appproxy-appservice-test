@@ -26,17 +26,22 @@ param authTenantId string
 @description('Entra ID application client secret for Easy Auth.')
 param authClientSecret string
 
-@description('Public IP address of the App Proxy Connector VM. When set, App Service ingress is restricted to this IP only (deny-by-default). Leave empty to allow all traffic.')
-param connectorPublicIp string = ''
+@description('Resource ID of the virtual network linked to the App Service private DNS zone.')
+param virtualNetworkId string
+
+@description('Resource ID of the subnet used by the App Service private endpoint.')
+param privateEndpointSubnetId string
+
+@description('CIDR allowed to access the SCM deployment endpoint.')
+param deploymentAllowedCidr string
 
 var authClientSecretSettingName = 'MICROSOFT_PROVIDER_AUTHENTICATION_SECRET'
-var restrictIngress = !empty(connectorPublicIp)
-var connectorIpRule = {
-  name: 'AllowAppProxyConnector'
-  description: 'Allow only Azure AD App Proxy Connector VM'
+var deploymentIpRule = {
+  name: 'AllowDeploymentClient'
+  description: 'Allow azd deployment from the administrator network'
   action: 'Allow'
   priority: 100
-  ipAddress: '${connectorPublicIp}/32'
+  ipAddress: deploymentAllowedCidr
 }
 
 resource plan 'Microsoft.Web/serverfarms@2024-04-01' = {
@@ -65,6 +70,7 @@ resource site 'Microsoft.Web/sites@2024-04-01' = {
   properties: {
     serverFarmId: plan.id
     httpsOnly: true
+    publicNetworkAccess: 'Enabled'
     siteConfig: {
       linuxFxVersion: linuxFxVersion
       alwaysOn: true
@@ -72,8 +78,11 @@ resource site 'Microsoft.Web/sites@2024-04-01' = {
       minTlsVersion: '1.2'
       http20Enabled: true
       appCommandLine: 'gunicorn --bind=0.0.0.0:8000 --timeout 600 app:app'
-      ipSecurityRestrictionsDefaultAction: restrictIngress ? 'Deny' : 'Allow'
-      ipSecurityRestrictions: restrictIngress ? [ connectorIpRule ] : []
+      ipSecurityRestrictionsDefaultAction: 'Deny'
+      ipSecurityRestrictions: []
+      scmIpSecurityRestrictionsDefaultAction: 'Deny'
+      scmIpSecurityRestrictionsUseMain: false
+      scmIpSecurityRestrictions: [deploymentIpRule]
       appSettings: [
         {
           name: 'SCM_DO_BUILD_DURING_DEPLOYMENT'
@@ -96,6 +105,66 @@ resource site 'Microsoft.Web/sites@2024-04-01' = {
   }
 }
 
+resource privateDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' = {
+  name: 'privatelink.azurewebsites.net'
+  location: 'global'
+  tags: tags
+}
+
+resource privateDnsVnetLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = {
+  parent: privateDnsZone
+  name: '${appServiceName}-vnet-link'
+  location: 'global'
+  tags: tags
+  properties: {
+    registrationEnabled: false
+    virtualNetwork: {
+      id: virtualNetworkId
+    }
+  }
+}
+
+resource privateEndpoint 'Microsoft.Network/privateEndpoints@2024-05-01' = {
+  name: '${appServiceName}-pe'
+  location: location
+  tags: tags
+  properties: {
+    subnet: {
+      id: privateEndpointSubnetId
+    }
+    privateLinkServiceConnections: [
+      {
+        name: '${appServiceName}-connection'
+        properties: {
+          privateLinkServiceId: site.id
+          groupIds: [
+            'sites'
+          ]
+          privateLinkServiceConnectionState: {
+            status: 'Approved'
+            description: 'Approved by the infrastructure deployment.'
+          }
+        }
+      }
+    ]
+  }
+}
+
+resource privateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2024-05-01' = {
+  parent: privateEndpoint
+  name: 'default'
+  properties: {
+    privateDnsZoneConfigs: [
+      {
+        name: 'app-service'
+        properties: {
+          privateDnsZoneId: privateDnsZone.id
+        }
+      }
+    ]
+  }
+}
+
 resource authsettings 'Microsoft.Web/sites/config@2024-04-01' = {
   parent: site
   name: 'authsettingsV2'
@@ -115,7 +184,7 @@ resource authsettings 'Microsoft.Web/sites/config@2024-04-01' = {
         registration: {
           clientId: authClientId
           clientSecretSettingName: authClientSecretSettingName
-          openIdIssuer: 'https://login.microsoftonline.com/${authTenantId}/v2.0'
+          openIdIssuer: '${environment().authentication.loginEndpoint}${authTenantId}/v2.0'
         }
         validation: {
           allowedAudiences: [

@@ -7,7 +7,7 @@ param tags object
 @description('Name prefix for connector resources.')
 param namePrefix string
 
-@description('CIDR allowed to RDP to the connector VM (e.g. 1.2.3.4/32).')
+@description('CIDR allowed to RDP to the connector VM (for example, 203.0.113.10/32).')
 param allowedRdpCidr string
 
 @description('Admin user name for the connector VM.')
@@ -42,6 +42,13 @@ resource vnet 'Microsoft.Network/virtualNetworks@2024-05-01' = {
           networkSecurityGroup: {
             id: nsg.id
           }
+        }
+      }
+      {
+        name: 'private-endpoints'
+        properties: {
+          addressPrefix: '10.10.2.0/24'
+          privateEndpointNetworkPolicies: 'Disabled'
         }
       }
     ]
@@ -175,3 +182,5 @@ resource installExt 'Microsoft.Compute/virtualMachines/extensions@2024-07-01' = 
 output publicIpAddress string = pip.properties.ipAddress
 output vmName string = vm.name
 output adminUsername string = adminUsername
+output virtualNetworkId string = vnet.id
+output privateEndpointSubnetId string = '${vnet.id}/subnets/private-endpoints'

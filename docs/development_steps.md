@@ -1,6 +1,6 @@
 このリポジトリの内容完成にあたっては以下のような順番でインクリメンタルに行う
 
-1. パブリックなApp Serviceのスタブアプリデプロイ
+1. App Serviceのスタブアプリデプロイ
 動作確認を容易にするために、このApp ServiceにはリクエストされたすべてのBodyとヘッダをBodyに入れてレスポンスする簡易なPython製のアプリをデプロイする
 
 2. Easy Authのアクティブ化
@@ -11,5 +11,5 @@ App Proxyをデプロイし、App ProxyとEasy Authの二重認証が可能で�
 二段階のプロキシで認証が発生するため、ヘッダ指定やリダイレクト先指定を正確に行わないとリダイレクトループが発生する点に注意する
 また、動作確認ができたのちにdocs配下に二重認証時のHTTPシーケンスを鍵となるヘッダ指定含めてmermaid形式でdocs/auth_sequence.mdとして出力する
 
-4. App Proxy のConnector以外からのアクセス拒否
-App Serviceのネットワーク設定を変更し、App ProxyのConnector VM以外からのアクセスを無効化する
+4. App ServiceのPrivate Endpoint化
+Connector VMと同じVNetにApp ServiceのPrivate Endpointを作成し、Private DNS経由で接続する。App Serviceの公開メインサイトはすべて拒否する。ローカルからのazdデプロイを維持するため、SCMエンドポイントだけは環境作成時に入力した管理者CIDRから許可する

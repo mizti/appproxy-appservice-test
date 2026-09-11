@@ -84,9 +84,11 @@ resource pip 'Microsoft.Network/publicIPAddresses@2024-05-01' = {
   tags: tags
   sku: {
     name: 'Standard'
+    tier: 'Regional'
   }
   properties: {
     publicIPAllocationMethod: 'Static'
+    publicIPAddressVersion: 'IPv4'
   }
 }
 

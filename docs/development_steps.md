@@ -1,7 +1,7 @@
 このリポジトリの内容完成にあたっては以下のような順番でインクリメンタルに行う
 
 1. App Serviceのスタブアプリデプロイ
-動作確認を容易にするために、このApp ServiceにはリクエストされたすべてのBodyとヘッダをBodyに入れてレスポンスする簡易なPython製のアプリをデプロイする
+動作確認を容易にするために、このApp Serviceには接続、Easy Auth認証、App Proxy経由の状態を表示する簡易なPython製のアプリをデプロイする。CookieやJWT本体は表示せず、JWTヘッダーがある場合はデバッグ用にpayloadのclaimだけを表で表示する
 
 2. Easy Authのアクティブ化
 上記のApp Serviceに対してEasy Authを有効化し、アプリへのデプロイ前にEntraID認証を必須化する

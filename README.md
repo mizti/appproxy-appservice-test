@@ -49,7 +49,7 @@ azd env set CONNECTOR_ALLOWED_RDP_CIDR <your-public-ip>/32
 
 ## ファイル
 
-- [app/](app/) : Flask 製の echo スタブアプリ
+- [app/](app/) : 接続経路、Easy Auth、JWT claim を安全に表示する Flask 製スタブアプリ
 - [infra/main.bicep](infra/main.bicep) : サブスクリプションスコープのエントリ
 - [infra/modules/appservice.bicep](infra/modules/appservice.bicep) : App Service、Private Endpoint、Private DNS
 - [infra/modules/connector-vm.bicep](infra/modules/connector-vm.bicep) : Connector VM、VNet、サブネット、NSG
